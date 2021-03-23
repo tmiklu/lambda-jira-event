@@ -50,7 +50,7 @@ def lambda_handler(event, context):
                       WithDecryption=False
                   )
                   
-                  url      = 'https://jira.dtvlaops.net/rest/api/2/search?jql=fixversion=orbis_ingester-2.5.0'
+                  url      = 'https://xxxx.xxx.xxx/rest/api/2/search?jql=fixversion=orbis_ingester-2.5.0'
                   user     = username['Parameter']['Value']
                   passwd   = password['Parameter']['Value']
               
