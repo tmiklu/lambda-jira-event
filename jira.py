@@ -3,7 +3,7 @@ import boto3
 from botocore.vendored import requests
 
 client = boto3.client('codebuild')
-ssm = boto3.client('ssm')
+ssm    = boto3.client('ssm')
 
 
 def lambda_handler(event, context):
