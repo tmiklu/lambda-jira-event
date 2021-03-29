@@ -56,6 +56,31 @@ def lambda_handler(event, context):
               authHeader = urllib3.make_headers(basic_auth=user + ':' + passwd)
               resp       =  http.request('GET', url, headers=authHeader)
               return json.loads(resp.data.decode('utf-8'))
+            
+              print('build started')
+  
+              response = client.start_build(
+
+                projectName            = 'gracenote-ingester-test',
+                sourceVersion          = 'refs/heads/' + source,
+                sourceTypeOverride     = repo,
+                sourceLocationOverride = url,
+
+                environmentVariablesOverride=[
+                    { 
+                      'name': 'url',
+                      'value': issue,
+                      'type': 'PLAINTEXT'
+
+                    },
+                    { 
+                      'name': 'num',
+                      'value': fix,
+                      'type': 'PLAINTEXT'
+
+                    }
+                ]
+              )
       
       else:
         print('Changelog object does not exists. No build required.')
