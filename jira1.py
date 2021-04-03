@@ -10,7 +10,7 @@ ssm    = boto3.client('ssm')
 # if ssl certificate expire, please enable this code
 # http   = urllib3.PoolManager(cert_reqs='CERT_NONE')
 http   = urllib3.PoolManager()
-url    = 'https://jira.dtvlaops.net/rest/api/2/issue/'
+url    = 'https://xx.xx.net/rest/api/2/issue/'
 #auth   = urllib3.make_headers(basic_auth='xxx:xxx')
 
 #
