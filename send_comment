@@ -1,0 +1,49 @@
+import json
+import boto3
+import urllib3
+import os
+
+ssm    = boto3.client('ssm')
+http   = urllib3.PoolManager()
+url    = 'https://jira.xxx.net/rest/api/2/issue/'
+#auth   = urllib3.make_headers(basic_auth='sa-xx-xx:xxx')
+
+
+path = "/tmp"
+dir_list = os.listdir(path)
+
+def _getApi(url, a, b, c):
+    data         = {'body': a + b + c }
+    encoded_data = json.dumps(data).encode('utf-8')
+    req          = http.request('POST', url, body=encoded_data, headers={'Content-Type': 'application/json', 'Authorization': 'Basic <base64>'})
+
+
+def lambda_handler(event, context):
+    # TODO implement
+    #print(event)
+    #return {
+    #    'statusCode': 200,
+    #    'body': json.dumps('OK')
+    #}
+    
+    #data = event['detail']['completed-phase'] + event['detail']['completed-phase-status'] + event['detail']['completed-phase-context']
+    
+    for get_event in event['detail']['additional-information']['environment']['environment-variables']:
+        if get_event['name'] == 'id':
+            print(get_event['value'], 'phase:', event['detail']['completed-phase'] + ', phase-status: ' + event['detail']['completed-phase-status'] + ' ' + event['detail']['completed-phase-context'])
+
+
+            
+            #print(get_event['value'])
+    #        comment_url = get_event['value'] + '/' + 'comment' + '/'
+            #print('comment url', comment_url)
+    #        a = 'phase:' + event['detail']['completed-phase'] + ' '
+    #        b = 'status:' + event['detail']['completed-phase-status'] + ' '
+    #        c = event['detail']['completed-phase-context']
+            
+    #        _getApi(comment_url, a, b, c)
+    
+    
+
+    
+    
