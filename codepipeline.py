@@ -12,13 +12,14 @@ logger    = logging.getLogger()
 logger.setLevel(logging.INFO)
 logging.getLogger('boto3').setLevel(logging.ERROR)
 
-#client    = boto3.client('codebuild')
-client    = boto3.client('codepipeline')
-ssm       = boto3.client('ssm')
-http      = urllib3.PoolManager()
-url       = 'https://xxx.xxx.net/rest/api/2/issue/'
-headers   = {'Content-Type': 'application/json', 'Authorization': 'Basic <base64>'}
-time_date = datetime.datetime.now()
+client       = boto3.client('codebuild')
+codepipeline = boto3.client('codepipeline')
+ssm          = boto3.client('ssm')
+http         = urllib3.PoolManager()
+url          = 'https://xx.xxx.net/rest/api/2/issue/'
+headers      = {'Content-Type': 'application/json', 'Authorization': 'Basic <base64>'}
+time_date    = datetime.datetime.now()
+role_arn     = 'arn:aws:iam::028960685088:role/service-role/AWSCodePipelineServiceRole-us-east-1-'
 
 
 #
@@ -56,28 +57,6 @@ def post_comment(build_release, duplicate, value=None):
     return 'comment: BUILD STARTED'
     #return json.loads(req.data.decode('utf-8'))
   return 'None'
-
-
-def start_build(project_name, branch, repo_type, repo_url, url_env, issue_id):
-    '''Set arguments and start code build'''
-    #{'name':'ci', 'value':ci_comment},
-    time.sleep(0.5)
-    start_args = {
-        'projectName':project_name,
-        'sourceVersion':branch,
-        'sourceTypeOverride':repo_type,
-        'sourceLocationOverride':repo_url,
-        'environmentVariablesOverride':[
-            {'name':'id', 'value':issue_id},
-            {'name':'url', 'value':url_env}
-            
-        ]
-    }
-    try:
-        response = client.start_build(**start_args)
-        return response['build']['buildNumber']
-    except Exception as e:
-        raise RuntimeError('%s' % e)
     
 
 def get_project(build_release, project_name):
@@ -98,14 +77,11 @@ def get_project(build_release, project_name):
     return 'Project exists'
 
 
-
-role_arn = 'arn:aws:iam::028960685088:role/service-role/AWSCodePipelineServiceRole-us-east-1-'
-
-def update_pipeline():
+def update_pipeline(components, environment, repo_type, branch, url_env, issue_id):
     response = codepipeline.update_pipeline(
         pipeline={
-            'name': 'vls-gracenote-ingester-dev',
-            'roleArn': role_arn + 'vls-gracenote-ingester-dev',
+            'name': components + '-' + environment,
+            'roleArn': role_arn + components + '-' + environment,
             'artifactStore': {
                 'type': 'S3',
                 'location': 's3-artifact-repo-test1'
@@ -119,12 +95,12 @@ def update_pipeline():
                             'actionTypeId': {
                                 'category': 'Source',
                                 'owner': 'AWS',
-                                'provider': 'CodeCommit',
+                                'provider': repo_type,
                                 'version': '1'
                             },
                             'configuration': {
-                                'RepositoryName': 'vls-gracenote-ingester',
-                                'BranchName': 'cicd'
+                                'RepositoryName': components,
+                                'BranchName': branch
                             },
                             'outputArtifacts': [
                                 {
@@ -148,10 +124,10 @@ def update_pipeline():
                                 'version': '1'
                             },
                             'configuration': {
-                                'ProjectName': 'vls-gracenote-ingester',
+                                'ProjectName': components,
                                 'EnvironmentVariables': '[\
-                                    {\"name\":\"VARIABLE\",\"value\":\"star\",\"type\":\"PLAINTEXT\"},\
-                                    {\"name\":\"TEST\",\"value\":\"new_value\",\"type\":\"PLAINTEXT\"}\
+                                    {\"name\":\"url\",\"value\":\"' + url_env + '\",\"type\":\"PLAINTEXT\"},\
+                                    {\"name\":\"id\",\"value\":\"' + issue_id + '\",\"type\":\"PLAINTEXT\"}\
                                 ]'
       
                             },
@@ -171,8 +147,13 @@ def update_pipeline():
             ],
         }
     )
-    return response['ResponseMetadata']['HTTPStatusCode']
+    return 'pipeline updated: ', response['ResponseMetadata']['HTTPStatusCode']
 
+def start_pipeline(components, environment):
+    response = codepipeline.start_pipeline_execution(
+        name = components + '-' + environment
+    )
+    return 'pipeline started', response['ResponseMetadata']['HTTPStatusCode']
 
 #
 ##
@@ -219,7 +200,6 @@ def lambda_handler(event, context):
                 repo_url            = custom_field['customfield_18209']
                 repo_type           = custom_field['customfield_18211']['value']
                 
-                          
                 component_list.append(components)
 
         print(component_list)
@@ -272,9 +252,9 @@ def lambda_handler(event, context):
                 ## start build print(start_build(components, branch, repo_type, repo_url, url_env, issue_id, ci_comment.comment_id))
                 
                 #
-                ## 4th level, start build
+                ## 4th level, start pipeline
                 #
-                #print(ci_comment(url_env))
-                #print(start_build(components, branch, repo_type, repo_url, url_env, issue_id))
+                print(update_pipeline(components, environment, repo_type, branch, url_env, issue_id))
+                print(start_pipeline(components, environment))
 
         print(post_comment(build_release, duplicate, duplicate_microservice))
