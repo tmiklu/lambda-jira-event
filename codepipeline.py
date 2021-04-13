@@ -3,12 +3,13 @@ import collections
 import datetime
 import json
 import logging
+import os
 import time
 import urllib3
 
 
 # set up logging
-logger    = logging.getLogger()
+logger       = logging.getLogger()
 logger.setLevel(logging.INFO)
 logging.getLogger('boto3').setLevel(logging.ERROR)
 
@@ -16,10 +17,11 @@ client       = boto3.client('codebuild')
 codepipeline = boto3.client('codepipeline')
 ssm          = boto3.client('ssm')
 http         = urllib3.PoolManager()
-url          = 'https://xx.xxx.net/rest/api/2/issue/'
-headers      = {'Content-Type': 'application/json', 'Authorization': 'Basic <base64>'}
+url          = 'https://jira.dtvlaops.net/rest/api/2/issue/'
 time_date    = datetime.datetime.now()
 role_arn     = 'arn:aws:iam::028960685088:role/service-role/AWSCodePipelineServiceRole-us-east-1-'
+base64       = os.environ['SECRET']
+headers      = {'Content-Type': 'application/json', 'Authorization': 'Basic ' + base64 + ''}
 
 
 #
