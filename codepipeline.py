@@ -15,7 +15,6 @@ logging.getLogger('boto3').setLevel(logging.ERROR)
 
 client       = boto3.client('codebuild')
 codepipeline = boto3.client('codepipeline')
-ssm          = boto3.client('ssm')
 http         = urllib3.PoolManager()
 url          = 'https://jira.xxxx.xxx/rest/api/2/issue/'
 time_date    = datetime.datetime.now()
