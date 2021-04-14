@@ -17,9 +17,9 @@ client       = boto3.client('codebuild')
 codepipeline = boto3.client('codepipeline')
 ssm          = boto3.client('ssm')
 http         = urllib3.PoolManager()
-url          = 'https://jira.xxx.net/rest/api/2/issue/'
+url          = 'https://jira.xxxx.xxx/rest/api/2/issue/'
 time_date    = datetime.datetime.now()
-role_arn     = 'arn:aws:iam::028960685088:role/service-role/AWSCodePipelineServiceRole-us-east-1-'
+role_arn     = 'arn:aws:iam::0000000000:role/service-role/AWSCodePipelineServiceRole-us-east-1-'
 base64       = os.environ['SECRET']
 headers      = {'Content-Type': 'application/json', 'Authorization': 'Basic ' + base64 + ''}
 
@@ -30,19 +30,21 @@ headers      = {'Content-Type': 'application/json', 'Authorization': 'Basic ' + 
 ##
 #
 
-def ci_comment(ci_url):
+def pipeline_view(ci_url, create_pipeline_comment):
     '''Return comment id for appending phases during CI build'''
-    data                    = {'body': 'build logs'}
+    data                    = {'body': '[pipeline|' + create_pipeline_comment + ']'}
     encoded_data            = json.dumps(data).encode('utf-8')
     req                     = http.request('POST', ci_url, body=encoded_data, headers=headers)
-    ci_comment.comment_id   = json.loads(req.data.decode('utf-8'))['id']
-    return ci_comment.comment_id
+    pipeline_view.comment_id   = json.loads(req.data.decode('utf-8'))['id']
+    return pipeline_view.comment_id
+
 
 def missing_issue_links(build_release):
     data         = {'body': time_date.strftime("%H:%M:%S %d/%b/%Y") + ' *BUILD ERROR* (!) Missing components in *Issue Links*'}
     encoded_data = json.dumps(data).encode('utf-8')
     req          = http.request('POST', build_release, body=encoded_data, headers=headers)
     return 'comment: BUILD ERROR - MISSING ISSUE LINKS' 
+
 
 def post_comment(build_release, duplicate, value=None):
   '''Send BUILD ERROR or BUILD STARTED comment'''
@@ -75,11 +77,11 @@ def get_project(build_release, project_name):
         req          = http.request('POST', build_release, body=encoded_data, headers=headers)
         raise RuntimeError('Project for build does not exists in codebuild')
         return result
-
     return 'Project exists'
 
 
-def update_pipeline(components, environment, repo_type, branch, url_env, issue_id):
+def update_pipeline(components, environment, repo_type, branch, url_env, issue_id, comment_id):
+    time.sleep(0.2)
     response = codepipeline.update_pipeline(
         pipeline={
             'name': components + '-' + environment,
@@ -100,16 +102,17 @@ def update_pipeline(components, environment, repo_type, branch, url_env, issue_i
                                 'provider': repo_type,
                                 'version': '1'
                             },
+                            'runOrder': 1,
                             'configuration': {
                                 'RepositoryName': components,
-                                'BranchName': branch
+                                'BranchName': branch,
+                                'PollForSourceChanges': 'false'
                             },
                             'outputArtifacts': [
                                 {
                                     'name': 'source'
                                 },
                             ],
-    
                             'region': 'us-east-1',
                         },
                     ]
@@ -125,11 +128,13 @@ def update_pipeline(components, environment, repo_type, branch, url_env, issue_i
                                 'provider': 'CodeBuild',
                                 'version': '1'
                             },
+                            'runOrder': 2,
                             'configuration': {
                                 'ProjectName': components,
                                 'EnvironmentVariables': '[\
                                     {\"name\":\"url\",\"value\":\"' + url_env + '\",\"type\":\"PLAINTEXT\"},\
-                                    {\"name\":\"id\",\"value\":\"' + issue_id + '\",\"type\":\"PLAINTEXT\"}\
+                                    {\"name\":\"id\",\"value\":\"' + issue_id + '\",\"type\":\"PLAINTEXT\"},\
+                                    {\"name\":\"ci\",\"value\":\"' + comment_id + '\",\"type\":\"PLAINTEXT\"}\
                                 ]'
       
                             },
@@ -142,16 +147,44 @@ def update_pipeline(components, environment, repo_type, branch, url_env, issue_i
                             {
                                 'name': 'artifact'
                             },
-                        ],
+                            ],
+                        },
+                    ]
+                },
+                {
+                    'name': 'Deploy',
+                    'actions': [
+                        {
+                            'name': 'Deploy',
+                            'actionTypeId': {
+                                'category': 'Deploy',
+                                'owner': 'AWS',
+                                'provider': 'CodeDeploy',
+                                'version': '1'
+                            },
+                            'runOrder': 3,
+                            'configuration': {
+                                'ApplicationName': components,
+                                'DeploymentGroupName': components + '-group'
+                            },
+                            'inputArtifacts': [
+                            {
+                                'name': 'artifact'
+                            },
+                            ],
+                            'region': 'us-east-1'
                         },
                     ]
                 },
             ],
+            'version': 1
         }
     )
-    return 'pipeline updated: ', response['ResponseMetadata']['HTTPStatusCode']
+    return 'pipeline updated: ',response['pipeline']['name'], response['ResponseMetadata']['HTTPStatusCode']
+    
 
 def start_pipeline(components, environment):
+    time.sleep(0.)
     response = codepipeline.start_pipeline_execution(
         name = components + '-' + environment
     )
@@ -247,16 +280,16 @@ def lambda_handler(event, context):
                 components          = custom_field['components'][0]['name']
                 
                 #
-                ## create comment, for later update during CI build
-                #print(ci_comment(comment))
-                
+                ## create comment, for later update of ci build
                 #
-                ## start build print(start_build(components, branch, repo_type, repo_url, url_env, issue_id, ci_comment.comment_id))
+                create_pipeline_comment = 'https://console.aws.amazon.com/codesuite/codepipeline/pipelines/' + components + '-' + environment + '/view?region=us-east-1'
+                print(pipeline_view(comment, create_pipeline_comment))
+                
                 
                 #
                 ## 4th level, start pipeline
                 #
-                print(update_pipeline(components, environment, repo_type, branch, url_env, issue_id))
+                print(update_pipeline(components, environment, repo_type, branch, url_env, issue_id, pipeline_view.comment_id))
                 print(start_pipeline(components, environment))
-
+                
         print(post_comment(build_release, duplicate, duplicate_microservice))
