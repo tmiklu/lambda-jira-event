@@ -1,49 +1,58 @@
-import json
 import boto3
-import urllib3
+import json
 import os
-
-ssm    = boto3.client('ssm')
-http   = urllib3.PoolManager()
-url    = 'https://jira.xxx.net/rest/api/2/issue/'
-#auth   = urllib3.make_headers(basic_auth='sa-xx-xx:xxx')
+import urllib3
 
 
-path = "/tmp"
-dir_list = os.listdir(path)
+http    = urllib3.PoolManager()
+url     = 'https://xxx.xxx.xxx/rest/api/2/issue/'
+base64  = os.environ['SECRET']
+headers = {'Content-Type': 'application/json', 'Authorization': 'Basic ' + base64 + ''}
+#auth   = urllib3.make_headers(basic_auth='xxxx:xxxx')
 
-def _getApi(url, a, b, c):
-    data         = {'body': a + b + c }
+#
+## functions
+#
+def _send_status(comment_url, phases, method):
+    data         = {'body': phases }
     encoded_data = json.dumps(data).encode('utf-8')
-    req          = http.request('POST', url, body=encoded_data, headers={'Content-Type': 'application/json', 'Authorization': 'Basic <base64>'})
+    req          = http.request(method, comment_url, body=encoded_data, headers=headers)
+    return 'Status sent'
 
 
+def get_comment_id(get_url_comment_id):
+    resp         = http.request('GET', get_url_comment_id, headers=headers)
+    body_comment = json.loads(resp.data.decode('utf-8'))['body']
+    return body_comment
+
+
+#
+## main program
+#
 def lambda_handler(event, context):
     # TODO implement
     #print(event)
-    #return {
-    #    'statusCode': 200,
-    #    'body': json.dumps('OK')
-    #}
     
-    #data = event['detail']['completed-phase'] + event['detail']['completed-phase-status'] + event['detail']['completed-phase-context']
+    artifact_location    = event['detail']['additional-information']['cache']['location']
+    artifact_url         = 'https://s3.console.aws.amazon.com/s3/buckets/' + artifact_location + '?region=us-east-1&tab=objects'
     
-    for get_event in event['detail']['additional-information']['environment']['environment-variables']:
-        if get_event['name'] == 'id':
-            print(get_event['value'], 'phase:', event['detail']['completed-phase'] + ', phase-status: ' + event['detail']['completed-phase-status'] + ' ' + event['detail']['completed-phase-context'])
+    deep_log             = event['detail']['additional-information']['logs']['deep-link']
+    issue_url            = next(item for item in event['detail']['additional-information']['environment']['environment-variables'] if item['name'] == 'url')
+    comment_url          = issue_url['value'] + 'comment/'
+    comment_id           = next(item for item in event['detail']['additional-information']['environment']['environment-variables'] if item['name'] == 'ci')
 
+    get_url_comment_id   = comment_url + comment_id['value']
+    pipeline_comment     = get_comment_id(get_url_comment_id)
 
-            
-            #print(get_event['value'])
-    #        comment_url = get_event['value'] + '/' + 'comment' + '/'
-            #print('comment url', comment_url)
-    #        a = 'phase:' + event['detail']['completed-phase'] + ' '
-    #        b = 'status:' + event['detail']['completed-phase-status'] + ' '
-    #        c = event['detail']['completed-phase-context']
-            
-    #        _getApi(comment_url, a, b, c)
+    method               = 'PUT'
     
-    
-
-    
-    
+    if event['detail']['build-status'] == 'FAILED':
+        get_event   = next(item for item in event['detail']['additional-information']['phases'] if item['phase-status'] == 'FAILED')
+        arr         = get_event['phase-context']
+        result      = '(x) build-status: ' + '[{color:red}*' + event['detail']['build-status'] + '*{color}|' + deep_log + '] ' + arr[0] + ', ' + pipeline_comment
+        print(_send_status(get_url_comment_id ,result, method))
+        return 'Failed'
+    else:
+        result = '(/) build-status: ' + '[{color:green}*' + event['detail']['build-status'] + '*{color}|' + deep_log + '] ' + '[artifact|' + artifact_url +']' + ', ' + pipeline_comment
+        print(_send_status(get_url_comment_id ,result, method))
+        return 'Success'
