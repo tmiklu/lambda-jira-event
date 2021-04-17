@@ -183,7 +183,7 @@ def update_pipeline(components, environment, repo_type, branch, url_env, issue_i
     
 
 def start_pipeline(components, environment):
-    time.sleep(0.)
+    time.sleep(0.2)
     response = codepipeline.start_pipeline_execution(
         name = components + '-' + environment
     )
